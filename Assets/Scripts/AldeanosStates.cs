@@ -1,16 +1,9 @@
-using UnityEngine;
-
-public class AldeanosStates : MonoBehaviour
+public enum AldeanosState
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
-    {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
+    Espera,         // En la aldea
+    BuscarRecursos, // Camino al bosque
+    Recolectando,   // Tomando recursos
+    Depositando,    // Regresando a la aldea
+    Huir,           // Huyendo de lobos
+    Grupo           // Unido con otros aldeanos
 }
