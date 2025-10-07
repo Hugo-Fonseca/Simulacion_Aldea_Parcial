@@ -26,8 +26,16 @@ public class Aldeanos : MonoBehaviour
     public AldeanosState currentState = AldeanosState.Espera;
     private float h;
 
-    // recarga progresiva de energía
-    public float rechargeRate = 5f;
+    public float rechargeRate = 5f; // energía por segundo en la aldea
+
+    // --- control de grupo ---
+    private int nearbyAldeanos = 0;
+
+    // propiedad pública que consultan los lobos
+    public bool IsGrouped
+    {
+        get { return nearbyAldeanos > 0; }
+    }
 
     void Start()
     {
@@ -35,21 +43,29 @@ public class Aldeanos : MonoBehaviour
         CambiarEstado(AldeanosState.Espera);
     }
 
-    // 🚀 este reemplaza a Update()
     public void Simulate(float deltaTime)
     {
         if (!isAlive) return;
 
         h = deltaTime;
         Age();
-
-        // 🔥 ajustar velocidad según edad
         UpdateSpeed();
 
-        // prioridad: detección de lobos
-        if (LoboEnRango() && currentState != AldeanosState.Huir && currentState != AldeanosState.Grupo)
+        // prioridad: huir de lobos (si no está en grupo)
+        if (LoboEnRango() && currentState != AldeanosState.Huir && !IsGrouped)
         {
             CambiarEstado(AldeanosState.Huir);
+        }
+
+        // si hay otros aldeanos cerca, forzamos el estado Grupo
+        if (IsGrouped && currentState != AldeanosState.Grupo)
+        {
+            CambiarEstado(AldeanosState.Grupo);
+        }
+        else if (!IsGrouped && currentState == AldeanosState.Grupo)
+        {
+            // si dejó de estar en grupo, volver a Espera (o al estado lógico)
+            CambiarEstado(AldeanosState.Espera);
         }
 
         switch (currentState)
@@ -78,13 +94,13 @@ public class Aldeanos : MonoBehaviour
     void EstadoEspera()
     {
         // recarga progresiva en la aldea
-        if (Vector3.Distance(transform.position, aldea.position) < 2f)
+        if (aldea != null && Vector3.Distance(transform.position, aldea.position) < 2f)
         {
             energy = Mathf.Min(100, energy + rechargeRate * h);
         }
 
         // Solo pueden salir si tienen entre 18 y 80 años y energía suficiente
-        if (age >= 18 && age <= 80 && energy >= 90)
+        if (age >= 18 && age <= 80 && energy >= 90 && !IsGrouped)
         {
             if (Random.value < 0.01f)
             {
@@ -95,9 +111,9 @@ public class Aldeanos : MonoBehaviour
 
     void EstadoBuscarRecursos()
     {
-        agent.SetDestination(bosque.position);
+        if (bosque != null) agent.SetDestination(bosque.position);
 
-        if (Vector3.Distance(transform.position, bosque.position) < 2f)
+        if (bosque != null && Vector3.Distance(transform.position, bosque.position) < 2f)
         {
             CambiarEstado(AldeanosState.Recolectando);
         }
@@ -116,9 +132,9 @@ public class Aldeanos : MonoBehaviour
 
     void EstadoDepositando()
     {
-        agent.SetDestination(aldea.position);
+        if (aldea != null) agent.SetDestination(aldea.position);
 
-        if (Vector3.Distance(transform.position, aldea.position) < 2f)
+        if (aldea != null && Vector3.Distance(transform.position, aldea.position) < 2f)
         {
             recursosRecolectados = 0;
             CambiarEstado(AldeanosState.Espera);
@@ -127,9 +143,9 @@ public class Aldeanos : MonoBehaviour
 
     void EstadoHuir()
     {
-        agent.SetDestination(aldea.position);
+        if (aldea != null) agent.SetDestination(aldea.position);
 
-        if (Vector3.Distance(transform.position, aldea.position) < 2f)
+        if (aldea != null && Vector3.Distance(transform.position, aldea.position) < 2f)
         {
             CambiarEstado(AldeanosState.Espera);
         }
@@ -137,7 +153,8 @@ public class Aldeanos : MonoBehaviour
 
     void EstadoGrupo()
     {
-        // En grupo aún no hace nada especial
+        // mientras estén en grupo, se quedan juntos (por ahora)
+        if (agent != null) agent.SetDestination(transform.position);
     }
 
     void CambiarEstado(AldeanosState nuevo)
@@ -154,9 +171,12 @@ public class Aldeanos : MonoBehaviour
         }
     }
 
-    void Morir()
+    // ahora público para que otros scripts (lobos) puedan invocarlo
+    public void Morir()
     {
+        if (!isAlive) return;
         isAlive = false;
+        // aquí podrías reproducir animación/efecto antes de destruir
         Destroy(gameObject);
     }
 
@@ -168,14 +188,26 @@ public class Aldeanos : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("Lobo") && currentState != AldeanosState.Grupo)
+        if (other.CompareTag("Lobo") && !IsGrouped)
         {
             Morir();
+            return;
         }
 
         if (other.CompareTag("Aldeano"))
         {
-            CambiarEstado(AldeanosState.Grupo);
+            // evita contar a sí mismo si por alguna razón colliders se detectan
+            if (other.gameObject != this.gameObject)
+                nearbyAldeanos++;
+        }
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (other.CompareTag("Aldeano"))
+        {
+            if (other.gameObject != this.gameObject)
+                nearbyAldeanos = Mathf.Max(0, nearbyAldeanos - 1);
         }
     }
 
@@ -187,10 +219,10 @@ public class Aldeanos : MonoBehaviour
 
     void UpdateSpeed()
     {
+        if (agent == null) return;
         if (age < 18) { agent.speed = 0; return; } // niños no salen
         if (age > 80) { agent.speed = 0; return; } // viejos no salen
 
-        // interpolación lineal entre velocidad máxima (18 años) y mínima (80 años)
         float t = Mathf.InverseLerp(18, 80, age);
         agent.speed = Mathf.Lerp(baseSpeed, minSpeed, t);
     }

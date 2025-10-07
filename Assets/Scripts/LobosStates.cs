@@ -1,16 +1,8 @@
-using UnityEngine;
-
-public class LobosStates : MonoBehaviour
+public enum LoboState
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
-    {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
+    Explorando, // Explorando el Bosque
+    Persiguiendo, // Persiguiendo una presa
+    Atacando, // Atacando a una presa
+    EvitandoGrupo, // Evitando un grupo de aldeanos
+    CazaFallida // Caza fallida, buscando nueva presa
 }
