@@ -3,65 +3,85 @@ using UnityEngine;
 
 public class SimulationManager : MonoBehaviour
 {
-    public float secondsPerIteration = 1.0f;
     private float time = 0f;
+
+    [Header("Escenario")]
+    public Aldea aldea;
+    public Bosque bosque;
 
     [Header("Entidades")]
     public List<Aldeanos> aldeanos = new List<Aldeanos>();
     public List<Lobos> lobos = new List<Lobos>();
 
-    [Header("Escenarios")]
-    public Aldea aldea;
-    public Bosque bosque;
-
     void Start()
     {
-        // Buscar aldeanos existentes en la escena
-        Aldeanos[] foundAldeanos = FindObjectsByType<Aldeanos>(FindObjectsSortMode.InstanceID);
+        // Buscar aldeanos y lobos en la escena automáticamente
+        Aldeanos[] foundAldeanos = FindObjectsOfType<Aldeanos>();
         aldeanos = new List<Aldeanos>(foundAldeanos);
 
-        // Buscar lobos existentes en la escena
-        Lobos[] foundLobos = FindObjectsByType<Lobos>(FindObjectsSortMode.InstanceID);
+        Lobos[] foundLobos = FindObjectsOfType<Lobos>();
         lobos = new List<Lobos>(foundLobos);
 
-        // Buscar referencias de aldea y bosque
-        aldea = FindFirstObjectByType<Aldea>();
-        bosque = FindFirstObjectByType<Bosque>();
+        // Buscar aldea y bosque si no están asignados
+        if (aldea == null) aldea = FindFirstObjectByType<Aldea>();
+        if (bosque == null) bosque = FindFirstObjectByType<Bosque>();
     }
 
     void Update()
     {
-        time += Time.deltaTime;
+        float deltaTime = Time.deltaTime;
+        time += deltaTime;
 
-        if (time >= secondsPerIteration)
+        Simulate(deltaTime);
+    }
+
+    public void Simulate(float deltaTime)
+    {
+        // Aldea
+        if (aldea != null)
+            aldea.Simulate(deltaTime);
+
+        // Bosque
+        if (bosque != null)
+            bosque.Simulate(deltaTime);
+
+        // Aldeanos
+        for (int i = aldeanos.Count - 1; i >= 0; i--)
         {
-            time = 0f;
-            Simulate();
+            if (aldeanos[i] == null) { aldeanos.RemoveAt(i); continue; }
+            aldeanos[i].Simulate(deltaTime);
+        }
+
+        // Lobos
+        for (int i = lobos.Count - 1; i >= 0; i--)
+        {
+            if (lobos[i] == null) { lobos.RemoveAt(i); continue; }
+            lobos[i].Simulate(deltaTime);
         }
     }
 
-    void Simulate()
+    // Registro manual opcional (por si instancias en runtime)
+    public void RegisterAldeano(Aldeanos aldeano)
     {
-        foreach (Aldeanos a in aldeanos)
-        {
-            if (a != null)
-            {
-                a.Simulate(secondsPerIteration);
-            }
-        }
+        if (!aldeanos.Contains(aldeano))
+            aldeanos.Add(aldeano);
+    }
 
-        foreach (Lobos l in lobos)
-        {
-            if (l != null)
-            {
-                // igual que con los aldeanos
-                // hacemos que cada lobo simule su comportamiento
-                l.Simulate(secondsPerIteration);
-            }
-        }
+    public void RegisterLobo(Lobos lobo)
+    {
+        if (!lobos.Contains(lobo))
+            lobos.Add(lobo);
+    }
 
-        // Aquí podríamos poner lógica de aldea/bosque
-        // Ejemplo: bosque genera lobos o recursos cada cierto tiempo
-        // aldea regenera aldeanos si hay recursos suficientes
+    public void RemoveAldeano(Aldeanos aldeano)
+    {
+        if (aldeanos.Contains(aldeano))
+            aldeanos.Remove(aldeano);
+    }
+
+    public void RemoveLobo(Lobos lobo)
+    {
+        if (lobos.Contains(lobo))
+            lobos.Remove(lobo);
     }
 }

@@ -97,8 +97,8 @@ GameObject:
   m_Component:
   - component: {fileID: 2348292537977489186}
   - component: {fileID: 3640596854093546431}
-  - component: {fileID: 4925324197379107773}
-  - component: {fileID: 688504437908692694}
+  - component: {fileID: 3738498479592439805}
+  - component: {fileID: 2539988145783579902}
   m_Layer: 0
   m_Name: Lobo
   m_TagString: Untagged
@@ -114,8 +114,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7208468300526352714}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: 0.9999993, w: 0.0011991803}
-  m_LocalPosition: {x: -2.2746654, y: 0.67399406, z: 0}
+  m_LocalRotation: {x: 0, y: 0, z: 0.9999993, w: 0.0011956135}
+  m_LocalPosition: {x: -0.8566451, y: 22.990288, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -178,23 +178,7 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
---- !u!114 &4925324197379107773
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7208468300526352714}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 378e63ea3b0bcc647a489b77f7623aad, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  currentState: 0
-  speed: 3
-  visionRange: 5
-  attackRange: 1
---- !u!60 &688504437908692694
+--- !u!60 &3738498479592439805
 PolygonCollider2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -244,6 +228,26 @@ PolygonCollider2D:
       - {x: -0.5, y: -0.28866667}
       - {x: 0.5, y: -0.28866667}
   m_UseDelaunayMesh: 0
+--- !u!114 &2539988145783579902
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7208468300526352714}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 378e63ea3b0bcc647a489b77f7623aad, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  moveSpeed: 2
+  visionRange: 6
+  attackRange: 1
+  attackCooldown: 2
+  aldeaComp: {fileID: 0}
+  fleeDistance: 1
+  rangoAldea: 13
+  currentState: 0
 --- !u!1 &8772439448589290682
 GameObject:
   m_ObjectHideFlags: 0

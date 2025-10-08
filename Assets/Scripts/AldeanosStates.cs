@@ -5,5 +5,6 @@ public enum AldeanosState
     Recolectando,   // Tomando recursos
     Depositando,    // Regresando a la aldea
     Huir,           // Huyendo de lobos
-    Grupo           // Unido con otros aldeanos
+    Grupo,           // Unido con otros aldeanos
+    Reproduccion     // Está en una casa con una pareja
 }

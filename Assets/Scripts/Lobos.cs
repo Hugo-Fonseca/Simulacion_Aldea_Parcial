@@ -1,139 +1,264 @@
-using UnityEngine;
+﻿using UnityEngine;
 
+[RequireComponent(typeof(Collider2D))]
 public class Lobos : MonoBehaviour
 {
-    public LoboState currentState = LoboState.Explorando;
-
-    public float speed = 3f;
+    [Header("Movimiento")]
+    public float moveSpeed = 2f;
     public float visionRange = 5f;
+
+    [Header("Ataque")]
     public float attackRange = 1f;
+    public float attackCooldown = 1.0f;
 
-    private Transform targetPrey;   // aldeano que persigue
-    private Vector3 destination;
+    [Header("Aldea (evitación)")]
+    public Aldea aldeaComp;              // componente Aldea (mejor asignar en el prefab/inspector)
+    public float fleeDistance = 5f;      // distancia a la que huye desde su posición actual
+    public float rangoAldea = 1.0f;      // umbral (en unidades) desde el borde del collider de la aldea para activar huida
 
-    void Update()
+    // estado interno
+    public LoboState currentState = LoboState.Patrullar;
+    private Aldeanos objetivo;
+    private Vector2 destino;             // destino actual (patrulla / huida / persecución)
+    private float timer = 0f;
+
+    // referencia directa al collider de la aldea (si existe)
+    private Collider2D aldeaCollider;
+
+    void Start()
     {
+        // intentar auto-asignar la aldea si no se asignó en el inspector
+        if (aldeaComp == null)
+        {
+            aldeaComp = FindObjectOfType<Aldea>();
+        }
+        if (aldeaComp != null)
+        {
+            aldeaCollider = aldeaComp.GetComponent<Collider2D>();
+        }
+
+        // registrarse en el SimulationManager si existe
+        SimulationManager sim = FindObjectOfType<SimulationManager>();
+        if (sim != null) sim.RegisterLobo(this);
+
+        CambiarEstado(LoboState.Patrullar);
+    }
+
+    // método que llama SimulationManager
+    public void Simulate(float deltaTime)
+    {
+        // ========== Chequeo PRIORITARIO: si estamos cerca/encima del collider de la aldea → huir ==========
+        if (aldeaCollider != null)
+        {
+            // ClosestPoint devuelve el punto del collider más cercano a la posición del lobo
+            Vector2 closest = aldeaCollider.ClosestPoint(transform.position);
+            float distToAldeaEdge = Vector2.Distance(transform.position, closest); // 0 si está dentro
+
+            if (distToAldeaEdge <= rangoAldea)
+            {
+                // si no está ya en Huir, calcular destino de huida y forzar Huir
+                if (currentState != LoboState.Huir)
+                {
+                    Vector2 fleeDir = ((Vector2)transform.position - (Vector2)aldeaComp.transform.position).normalized;
+                    if (fleeDir.sqrMagnitude < 0.001f) fleeDir = Random.insideUnitCircle.normalized;
+                    destino = (Vector2)transform.position + fleeDir * fleeDistance;
+                    CambiarEstado(LoboState.Huir);
+                }
+
+                // ejecutar estado Huir inmediatamente (prioritario)
+                EstadoHuir(deltaTime);
+                return;
+            }
+        }
+
+        // ========== comportamiento normal según estado ==========
         switch (currentState)
         {
-            case LoboState.Explorando:
-                Explore();
-                break;
-            case LoboState.Persiguiendo:
-                Chase();
-                break;
-            case LoboState.Atacando:
-                Attack();
-                break;
-            case LoboState.EvitandoGrupo:
-                AvoidGroup();
-                break;
-            case LoboState.CazaFallida:
-                FailHunt();
-                break;
+            case LoboState.Patrullar: EstadoPatrullar(deltaTime); break;
+            case LoboState.Perseguir: EstadoPerseguir(deltaTime); break;
+            case LoboState.Atacar: EstadoAtacar(deltaTime); break;
+            case LoboState.Comer: EstadoComer(deltaTime); break;
+            case LoboState.Huir: EstadoHuir(deltaTime); break;
+            case LoboState.CazaFallida: EstadoCazaFallida(deltaTime); break;
         }
     }
 
-    void Explore()
+    // ---------- Estados ----------
+    void EstadoPatrullar(float dt)
     {
-        if (Vector3.Distance(transform.position, destination) < 0.5f)
-        {
-            SelectNewDestination();
-        }
-        MoveTowards(destination);
+        if (Vector2.Distance(transform.position, destino) < 0.25f)
+            destino = (Vector2)transform.position + Random.insideUnitCircle * 4f;
 
-        // Detectar aldeanos dentro de rango
-        Collider[] hits = Physics.OverlapSphere(transform.position, visionRange, LayerMask.GetMask("Aldeanos"));
+        MoverHacia(destino, dt);
 
-        foreach (var h in hits)
+        // buscar aldeanos solitarios en visionRange
+        Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, visionRange, LayerMask.GetMask("Aldeanos"));
+        foreach (var c in hits)
         {
-            Aldeanos aldeano = h.GetComponent<Aldeanos>();
-            if (aldeano != null)
+            Aldeanos a = c.GetComponent<Aldeanos>();
+            if (a != null && a.isAlive && !a.IsGrouped)
             {
-                if (!aldeano.IsGrouped) // aldeano solitario
-                {
-                    targetPrey = aldeano.transform;
-                    currentState = LoboState.Persiguiendo;
-                    return;
-                }
-                else // aldeano en grupo
-                {
-                    targetPrey = aldeano.transform;
-                    currentState = LoboState.EvitandoGrupo;
-                    return;
-                }
+                objetivo = a;
+                CambiarEstado(LoboState.Perseguir);
+                break;
             }
         }
     }
 
-    void Chase()
+    void EstadoPerseguir(float dt)
     {
-        if (targetPrey == null)
+        if (objetivo == null || !objetivo.isAlive)
         {
-            currentState = LoboState.CazaFallida;
+            CambiarEstado(LoboState.Patrullar);
             return;
         }
 
-        MoveTowards(targetPrey.position);
+        // Si el objetivo se mete en la aldea -> caza fallida (no entrar)
+        if (aldeaCollider != null && aldeaCollider.OverlapPoint(objetivo.transform.position))
+        {
+            CambiarEstado(LoboState.CazaFallida);
+            return;
+        }
 
-        float dist = Vector3.Distance(transform.position, targetPrey.position);
+        float dist = Vector2.Distance(transform.position, objetivo.transform.position);
         if (dist <= attackRange)
         {
-            currentState = LoboState.Atacando;
+            CambiarEstado(LoboState.Atacar);
+            return;
         }
-        else if (dist > visionRange * 1.5f) // perdi� a la presa
-        {
-            currentState = LoboState.CazaFallida;
-        }
-    }
 
-    void Attack()
-    {
-        if (targetPrey != null)
+        // Si el lobo se está acercando demasiado a la aldea mientras persigue -> huir
+        if (aldeaCollider != null)
         {
-            Aldeanos aldeano = targetPrey.GetComponent<Aldeanos>();
-            if (aldeano != null && !aldeano.IsGrouped) // solo ataca si est� solo
+            Vector2 closest = aldeaCollider.ClosestPoint(transform.position);
+            float distToAldeaEdge = Vector2.Distance(transform.position, closest);
+            if (distToAldeaEdge <= rangoAldea)
             {
-                aldeano.Morir(); // utiliza la funci�n p�blica del aldeano
+                Vector2 fleeDir = ((Vector2)transform.position - (Vector2)aldeaComp.transform.position).normalized;
+                if (fleeDir.sqrMagnitude < 0.001f) fleeDir = Random.insideUnitCircle.normalized;
+                destino = (Vector2)transform.position + fleeDir * fleeDistance;
+                CambiarEstado(LoboState.Huir);
+                return;
             }
         }
-        targetPrey = null;
-        currentState = LoboState.Explorando;
+
+        MoverHacia(objetivo.transform.position, dt);
     }
 
-    void AvoidGroup()
+    void EstadoAtacar(float dt)
     {
-        if (targetPrey != null)
+        if (objetivo == null || !objetivo.isAlive)
         {
-            Vector3 awayDir = (transform.position - targetPrey.position).normalized;
-            MoveTowards(transform.position + awayDir * 3f);
+            CambiarEstado(LoboState.Patrullar);
+            return;
         }
-        targetPrey = null;
-        currentState = LoboState.Explorando;
+
+        float dist = Vector2.Distance(transform.position, objetivo.transform.position);
+        if (dist > attackRange)
+        {
+            CambiarEstado(LoboState.Perseguir);
+            return;
+        }
+
+        timer += dt;
+        if (timer >= attackCooldown)
+        {
+            timer = 0f;
+            // comer: destruir al aldeano
+            objetivo.isAlive = false;
+            Destroy(objetivo.gameObject);
+
+            objetivo = null;
+            CambiarEstado(LoboState.Comer);
+        }
     }
 
-    void FailHunt()
+    void EstadoComer(float dt)
     {
-        targetPrey = null;
-        SelectNewDestination();
-        currentState = LoboState.Explorando;
+        timer += dt;
+        if (timer >= 2f) // ejemplo: 2s comiendo
+            CambiarEstado(LoboState.Patrullar);
     }
 
-    void SelectNewDestination()
+    void EstadoHuir(float dt)
     {
-        Vector2 randomPos = Random.insideUnitCircle * 5f; // tama�o bosque
-        destination = new Vector3(randomPos.x, randomPos.y, 0);
+        // recalcular siempre un destino de huida mientras huye
+        if (aldeaComp != null)
+        {
+            Vector2 dir = ((Vector2)transform.position - (Vector2)aldeaComp.transform.position).normalized;
+            if (dir.sqrMagnitude < 0.001f) dir = Random.insideUnitCircle.normalized;
+            destino = (Vector2)transform.position + dir * fleeDistance;
+        }
+
+        MoverHacia(destino, dt);
+
+        timer += dt;
+
+        // condición 1: ya se alejó lo suficiente
+        if (aldeaCollider != null)
+        {
+            Vector2 closest = aldeaCollider.ClosestPoint(transform.position);
+            float distToAldeaEdge = Vector2.Distance(transform.position, closest);
+            if (distToAldeaEdge > rangoAldea + 1f)
+            {
+                CambiarEstado(LoboState.Patrullar);
+                return;
+            }
+        }
+
+        // condición 2: estuvo huyendo más de 3s
+        if (timer >= 3f)
+        {
+            CambiarEstado(LoboState.Patrullar);
+        }
     }
 
-    void MoveTowards(Vector3 target)
+
+    void EstadoCazaFallida(float dt)
     {
-        transform.position = Vector3.MoveTowards(transform.position, target, speed * Time.deltaTime);
+        // frustrado: moverse un rato y volver a patrullar
+        destino = (Vector2)transform.position + Random.insideUnitCircle * 3f;
+        MoverHacia(destino, dt);
+
+        timer += dt;
+        if (timer > 2f)
+            CambiarEstado(LoboState.Patrullar);
     }
+
+    // ---------- utilidades ----------
+    void MoverHacia(Vector2 target, float dt)
+    {
+        Vector2 dir = (target - (Vector2)transform.position).normalized;
+        if (dir.sqrMagnitude < 0.0001f) return;
+        transform.position += (Vector3)(dir * moveSpeed * dt);
+    }
+
+    void CambiarEstado(LoboState nuevo)
+    {
+        currentState = nuevo;
+        timer = 0f;
+
+        if (nuevo == LoboState.Patrullar)
+        {
+            destino = (Vector2)transform.position + Random.insideUnitCircle * 4f;
+        }
+        else if (nuevo == LoboState.CazaFallida)
+        {
+            destino = (Vector2)transform.position + Random.insideUnitCircle * 3f;
+        }
+    }
+
 
     void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, visionRange);
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, attackRange);
+
+        if (aldeaComp != null)
+        {
+            Gizmos.color = Color.green;
+            // dibuja la "zona de evitación" alrededor del collider (aprox usando transform)
+            Gizmos.DrawWireSphere(aldeaComp.transform.position, rangoAldea);
+        }
     }
 }
