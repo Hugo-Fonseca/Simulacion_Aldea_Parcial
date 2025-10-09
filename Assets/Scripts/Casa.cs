@@ -25,7 +25,6 @@ public class Casa : MonoBehaviour
                 a1.genero != a2.genero &&
                 a1.edad >= 20 && a2.edad >= 20)
             {
-                // Empiezan a "pasar tiempo en la casa"
                 timer += deltaTime;
 
                 if (timer >= tiempoReproduccion)
@@ -33,17 +32,18 @@ public class Casa : MonoBehaviour
                     CrearNuevoAldeano();
                     timer = 0f;
 
-                    // Los dos aldeanos regresan a la aldea
-                    a1.CambiarEstado(AldeanoState.EnAldea);
-                    a2.CambiarEstado(AldeanoState.EnAldea);
-
+                    // Sacar a los dos de la casa y devolverlos a la aldea
+                    foreach (var a in aldeanosDentro)
+                    {
+                        a.CambiarEstado(AldeanoState.EnAldea);
+                        a.transform.position = (Vector2)transform.position + Random.insideUnitCircle * 1.5f;
+                    }
                     VaciarCasa();
                 }
             }
         }
         else
         {
-            // Reiniciar si no hay pareja completa
             timer = 0f;
         }
     }
@@ -56,11 +56,13 @@ public class Casa : MonoBehaviour
 
     public void VaciarCasa()
     {
+        // avisar a residentes si fuera necesario
         aldeanosDentro.Clear();
     }
 
     public void CrearNuevoAldeano()
     {
+        if (aldeanoPrefab == null) return;
         Vector2 spawnPos = (Vector2)transform.position + Random.insideUnitCircle * 1f;
         Instantiate(aldeanoPrefab, spawnPos, Quaternion.identity);
         Debug.Log("¡Nuevo aldeano nacido en la casa!");
@@ -75,7 +77,7 @@ public class Casa : MonoBehaviour
             if (aldeanosDentro.Count < 2)
             {
                 aldeanosDentro.Add(aldeano);
-                aldeano.AsignarCasa(this);
+                aldeano.AsignarCasa(this); // esto pone al aldeano en EnCasa
             }
         }
     }

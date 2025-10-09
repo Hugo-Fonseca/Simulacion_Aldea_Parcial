@@ -16,24 +16,39 @@ public class Aldea : MonoBehaviour
     public List<GameObject> casas = new List<GameObject>();
     private GameObject depositoCentral;
 
+    [Header("Distribución casas")]
+    public float radioAldea = 6f;
+    public float minDistanceFromDeposito = 3f;
+    public float minDistanceBetweenCasas = 2f;
+
     [Header("Curación")]
     public float curacionPorSegundo = 5f;
 
+    void Start()
+    {
+        Initialize();
+    }
+
     public void Initialize()
     {
-        depositoCentral = Instantiate(depositoPrefab, transform.position, Quaternion.identity, transform);
-        CrearCasa();
+        if (depositoCentral == null && depositoPrefab != null)
+        {
+            depositoCentral = Instantiate(depositoPrefab, transform.position, Quaternion.identity, transform);
+        }
+
+        // Crear una primera casa si aún no hay ninguna
+        if (casas.Count == 0 && casaPrefab != null)
+            CrearCasa();
     }
 
     public void Simulate(float deltaTime)
     {
-        foreach (var casa in casas)
+        // Hacer Simulate en cada casa
+        for (int i = 0; i < casas.Count; i++)
         {
-            Casa casaComp = casa.GetComponent<Casa>();
+            Casa casaComp = casas[i].GetComponent<Casa>();
             if (casaComp != null)
-            {
                 casaComp.Simulate(deltaTime);
-            }
         }
     }
 
@@ -52,9 +67,43 @@ public class Aldea : MonoBehaviour
 
     private void CrearCasa()
     {
-        Vector2 posAleatoria = (Vector2)transform.position + Random.insideUnitCircle * 3f;
-        GameObject nuevaCasa = Instantiate(casaPrefab, posAleatoria, Quaternion.identity, transform);
+        if (casaPrefab == null) return;
+
+        Vector2 pos = GenerarPosicionCasa();
+        GameObject nuevaCasa = Instantiate(casaPrefab, pos, Quaternion.identity, transform);
         casas.Add(nuevaCasa);
         Debug.Log("Nueva casa construida en la aldea!");
+    }
+
+    Vector2 GenerarPosicionCasa()
+    {
+        Vector2 pos = (Vector2)transform.position;
+        int intentos = 0;
+
+        do
+        {
+            pos = (Vector2)transform.position + Random.insideUnitCircle * radioAldea;
+            intentos++;
+
+            // evitar deposito muy cercano
+            bool cercaDeposito = depositoCentral != null && Vector2.Distance(pos, depositoCentral.transform.position) < minDistanceFromDeposito;
+
+            // evitar superposición con otras casas
+            bool overlapCasa = false;
+            foreach (var c in casas)
+            {
+                if (c == null) continue;
+                if (Vector2.Distance(pos, c.transform.position) < minDistanceBetweenCasas)
+                {
+                    overlapCasa = true;
+                    break;
+                }
+            }
+
+            if (!cercaDeposito && !overlapCasa) break;
+
+        } while (intentos < 40);
+
+        return pos;
     }
 }

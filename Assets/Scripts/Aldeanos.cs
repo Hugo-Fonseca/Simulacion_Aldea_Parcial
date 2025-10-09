@@ -25,7 +25,8 @@ public class Aldeanos : MonoBehaviour
 
     [Header("Referencias")]
     public Aldea aldeaComp;
-    public Bosque bosqueComp;
+    public Bosque bosqueComp; // sólo referencia por defecto
+    private Bosque bosqueDestino; // bosque elegido cuando sale
     private Casa casaActual;
 
     public AldeanoState currentState = AldeanoState.EnAldea;
@@ -34,6 +35,8 @@ public class Aldeanos : MonoBehaviour
     private List<Aldeanos> grupoActual = new List<Aldeanos>();
 
     private float timer = 0f;
+    private float tiempoEnAldea = 0f;
+    public float tiempoMinimoEnAldea = 5f; // tiempo de descanso en la aldea
 
     void Start()
     {
@@ -43,12 +46,16 @@ public class Aldeanos : MonoBehaviour
         SimulationManager sim = FindObjectOfType<SimulationManager>();
         if (sim != null) sim.RegisterAldeano(this);
 
+        // destino inicial dentro de la aldea (si hay aldea)
+        if (aldeaComp != null)
+            destino = (Vector2)aldeaComp.transform.position + Random.insideUnitCircle * (aldeaComp.radioAldea);
+
         CambiarEstado(AldeanoState.EnAldea);
     }
 
     public void Simulate(float deltaTime)
     {
-        if (!isAlive) return;
+        if (!isAlive || currentState == AldeanoState.Muerto) return;
 
         // Envejecer: 1 año cada 2 segundos
         timer += deltaTime;
@@ -67,38 +74,89 @@ public class Aldeanos : MonoBehaviour
         {
             case AldeanoState.EnAldea: EstadoEnAldea(deltaTime); break;
             case AldeanoState.Saliendo: EstadoSaliendo(deltaTime); break;
+            case AldeanoState.Reproducción: EstadoReproduccion(deltaTime); break;
             case AldeanoState.Recolectando: EstadoRecolectando(deltaTime); break;
             case AldeanoState.Regresando: EstadoRegresando(deltaTime); break;
             case AldeanoState.Huyendo: EstadoHuyendo(deltaTime); break;
-            case AldeanoState.EnCasa: /* Casa controla el tiempo */ break;
+            case AldeanoState.EnCasa: EstadoEnCasa(deltaTime); break;
             case AldeanoState.Grupo: EstadoGrupo(deltaTime); break;
+            case AldeanoState.Muerto: /* No hace nada */ break;
         }
     }
 
     // ---------- Estados ----------
     void EstadoEnAldea(float dt)
     {
-        if (Vector2.Distance(transform.position, destino) < 0.25f)
-            destino = (Vector2)aldeaComp.transform.position + Random.insideUnitCircle * 3f;
+        // Explorar dentro de un área amplia de la aldea
+        if (aldeaComp != null)
+        {
+            if (Vector2.Distance(transform.position, destino) < 0.25f)
+                destino = (Vector2)aldeaComp.transform.position + Random.insideUnitCircle * (aldeaComp.radioAldea);
+        }
 
         MoverHacia(destino, dt);
 
-        if (Random.value < 0.001f)
+        tiempoEnAldea += dt;
+        if (tiempoEnAldea >= tiempoMinimoEnAldea)
         {
+            tiempoEnAldea = 0f;
+
+            // Si está en edad fértil -> ir a reproducirse (buscar casa)
+            if (edad >= 20 && edad <= 50)
+            {
+                CambiarEstado(AldeanoState.Reproducción);
+                return;
+            }
+
+            // Si no, sale a recolectar
             if (edad >= 15 && edad <= 60)
+            {
                 CambiarEstado(AldeanoState.Saliendo);
+            }
         }
+    }
+
+    void EstadoReproduccion(float dt)
+    {
+        // Si no tiene casa, buscar una disponible en la aldea
+        if (casaActual == null)
+        {
+            Casa casaDisponible = BuscarCasaDisponible();
+            if (casaDisponible != null)
+                casaActual = casaDisponible;
+            else
+            {
+                // No hay casa: se queda paseando en la aldea hasta la próxima decisión
+                if (aldeaComp != null && Vector2.Distance(transform.position, destino) < 0.25f)
+                    destino = (Vector2)aldeaComp.transform.position + Random.insideUnitCircle * (aldeaComp.radioAldea);
+                MoverHacia(destino, dt);
+                return;
+            }
+        }
+
+        // Ir hacia la casa asignada
+        destino = casaActual.transform.position;
+        MoverHacia(destino, dt);
+
+        // El cambio a EnCasa ocurre cuando entra al trigger de la casa (OnTriggerEnter2D)
     }
 
     void EstadoSaliendo(float dt)
     {
-        if (bosqueComp == null) { CambiarEstado(AldeanoState.EnAldea); return; }
+        // Elegir un bosque aleatorio (si hay varios)
+        if (bosqueDestino == null)
+        {
+            Bosque[] bosques = FindObjectsOfType<Bosque>();
+            if (bosques.Length == 0) { CambiarEstado(AldeanoState.EnAldea); return; }
+            bosqueDestino = bosques[Random.Range(0, bosques.Length)];
+            destino = (Vector2)bosqueDestino.transform.position + Random.insideUnitCircle * bosqueDestino.radioBosque;
+        }
 
-        destino = (Vector2)bosqueComp.transform.position + Random.insideUnitCircle * bosqueComp.radioBosque;
         MoverHacia(destino, dt);
 
         if (Vector2.Distance(transform.position, destino) < 0.5f)
         {
+            bosqueDestino = null;
             CambiarEstado(AldeanoState.Recolectando);
         }
     }
@@ -138,6 +196,11 @@ public class Aldeanos : MonoBehaviour
         }
     }
 
+    void EstadoEnCasa(float dt)
+    {
+        // Inmóvil; la lógica de reproducción la controla Casa.Simulate
+    }
+
     void EstadoRegresando(float dt)
     {
         MoverHacia(aldeaComp.transform.position, dt);
@@ -157,9 +220,7 @@ public class Aldeanos : MonoBehaviour
         MoverHacia(destino, dt);
 
         if (Vector2.Distance(transform.position, aldeaComp.transform.position) < 1.5f)
-        {
             CambiarEstado(AldeanoState.EnAldea);
-        }
     }
 
     void EstadoGrupo(float dt)
@@ -177,6 +238,7 @@ public class Aldeanos : MonoBehaviour
             a.MoverHacia(lider.destino, dt);
         }
 
+        // al llegar a la aldea se separan
         if (Vector2.Distance(transform.position, aldeaComp.transform.position) < 1.5f)
         {
             foreach (var a in grupoActual)
@@ -200,13 +262,33 @@ public class Aldeanos : MonoBehaviour
     public void CambiarEstado(AldeanoState nuevo)
     {
         currentState = nuevo;
+
+        // inicializaciones por estado
+        if (nuevo == AldeanoState.EnAldea)
+        {
+            tiempoEnAldea = 0f;
+            // nuevo destino de exploración en la aldea
+            if (aldeaComp != null) destino = (Vector2)aldeaComp.transform.position + Random.insideUnitCircle * (aldeaComp.radioAldea);
+        }
+        else if (nuevo == AldeanoState.EnCasa)
+        {
+            // inmóvil
+            destino = (Vector2)transform.position;
+        }
+        else if (nuevo == AldeanoState.Saliendo)
+        {
+            bosqueDestino = null; // se elegirá al entrar en EstadoSaliendo
+        }
     }
 
     public void Morir()
     {
         isAlive = false;
+        currentState = AldeanoState.Muerto;
+
         SimulationManager sim = FindObjectOfType<SimulationManager>();
         if (sim != null) sim.RemoveAldeano(this);
+
         Destroy(gameObject);
     }
 
@@ -217,5 +299,33 @@ public class Aldeanos : MonoBehaviour
         {
             CambiarEstado(AldeanoState.EnCasa);
         }
+        else
+        {
+            // si se le quita la casa -> volver a EnAldea
+            CambiarEstado(AldeanoState.EnAldea);
+        }
+    }
+
+    Casa BuscarCasaDisponible()
+    {
+        if (aldeaComp == null) return null;
+
+        foreach (var go in aldeaComp.casas)
+        {
+            Casa casa = go.GetComponent<Casa>();
+            if (casa == null) continue;
+
+            List<Aldeanos> residentes = casa.GetResidentes();
+
+            // Caso 1: Casa vacía
+            if (residentes.Count == 0)
+                return casa;
+
+            // Caso 2: Un residente de género opuesto
+            if (residentes.Count == 1 && residentes[0].genero != this.genero)
+                return casa;
+        }
+
+        return null; // No hay casa disponible
     }
 }
