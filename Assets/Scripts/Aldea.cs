@@ -8,7 +8,7 @@ public class Aldea : MonoBehaviour
 
     public int recursosTotales = 0;
     public int capacidadRecursos = 200;
-    public int recursosPorCasa = 20; // cada X recursos → nueva casa
+    public int recursosPorCasa = 20;
 
     [Header("Estructuras")]
     public GameObject casaPrefab;
@@ -21,16 +21,12 @@ public class Aldea : MonoBehaviour
 
     public void Initialize()
     {
-        // Crear depósito inicial
         depositoCentral = Instantiate(depositoPrefab, transform.position, Quaternion.identity, transform);
-
-        // Crear una primera casa
         CrearCasa();
     }
 
     public void Simulate(float deltaTime)
     {
-        // Revisar parejas en las casas
         foreach (var casa in casas)
         {
             Casa casaComp = casa.GetComponent<Casa>();
@@ -47,7 +43,6 @@ public class Aldea : MonoBehaviour
         if (recursosTotales > capacidadRecursos)
             recursosTotales = capacidadRecursos;
 
-        // Crear casas automáticamente por recursos acumulados
         int casasEsperadas = recursosTotales / recursosPorCasa;
         while (casas.Count < casasEsperadas)
         {

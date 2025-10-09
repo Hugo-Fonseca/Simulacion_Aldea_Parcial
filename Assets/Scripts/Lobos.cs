@@ -13,8 +13,8 @@ public class Lobos : MonoBehaviour
 
     [Header("Aldea (evitación)")]
     public Aldea aldeaComp;              // componente Aldea (mejor asignar en el prefab/inspector)
-    public float fleeDistance = 5f;      // distancia a la que huye desde su posición actual
-    public float rangoAldea = 1.0f;      // umbral (en unidades) desde el borde del collider de la aldea para activar huida
+    public float fleeDistance = 1f;      // distancia a la que huye desde su posición actual
+    public float rangoAldea = 13.0f;      // umbral (en unidades) desde el borde del collider de la aldea para activar huida
 
     // estado interno
     public LoboState currentState = LoboState.Patrullar;
@@ -91,12 +91,23 @@ public class Lobos : MonoBehaviour
 
         MoverHacia(destino, dt);
 
-        // buscar aldeanos solitarios en visionRange
+        // buscar aldeanos en visionRange
         Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, visionRange, LayerMask.GetMask("Aldeanos"));
+
+        if (hits.Length >= 3) // aquí defines qué consideras grupo
+        {
+            Vector2 fleeDir = ((Vector2)transform.position - (Vector2)aldeaComp.transform.position).normalized;
+            if (fleeDir.sqrMagnitude < 0.001f) fleeDir = Random.insideUnitCircle.normalized;
+            destino = (Vector2)transform.position + fleeDir * fleeDistance;
+            CambiarEstado(LoboState.Huir);
+            return;
+        }
+
+        // si hay un aldeano solitario -> perseguir
         foreach (var c in hits)
         {
             Aldeanos a = c.GetComponent<Aldeanos>();
-            if (a != null && a.isAlive && !a.IsGrouped)
+            //if (a != null && a.isAlive && !a.IsGrouped)
             {
                 objetivo = a;
                 CambiarEstado(LoboState.Perseguir);
@@ -113,10 +124,21 @@ public class Lobos : MonoBehaviour
             return;
         }
 
-        // Si el objetivo se mete en la aldea -> caza fallida (no entrar)
+        // Si el objetivo se mete en la aldea -> caza fallida
         if (aldeaCollider != null && aldeaCollider.OverlapPoint(objetivo.transform.position))
         {
             CambiarEstado(LoboState.CazaFallida);
+            return;
+        }
+
+        // 🔴 NUEVO: si aparecen varios aldeanos cerca -> huir
+        Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, visionRange, LayerMask.GetMask("Aldeanos"));
+        if (hits.Length >= 2)
+        {
+            Vector2 fleeDir = ((Vector2)transform.position - (Vector2)aldeaComp.transform.position).normalized;
+            if (fleeDir.sqrMagnitude < 0.001f) fleeDir = Random.insideUnitCircle.normalized;
+            destino = (Vector2)transform.position + fleeDir * fleeDistance;
+            CambiarEstado(LoboState.Huir);
             return;
         }
 
@@ -127,7 +149,7 @@ public class Lobos : MonoBehaviour
             return;
         }
 
-        // Si el lobo se está acercando demasiado a la aldea mientras persigue -> huir
+        // Si el lobo se acerca mucho a la aldea -> huir
         if (aldeaCollider != null)
         {
             Vector2 closest = aldeaCollider.ClosestPoint(transform.position);
@@ -142,6 +164,7 @@ public class Lobos : MonoBehaviour
             }
         }
 
+        // seguir persiguiendo
         MoverHacia(objetivo.transform.position, dt);
     }
 

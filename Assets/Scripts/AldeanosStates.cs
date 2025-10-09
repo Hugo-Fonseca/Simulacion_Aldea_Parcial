@@ -1,10 +1,11 @@
-public enum AldeanosState
+public enum AldeanoState
 {
-    Espera,         // En la aldea
-    BuscarRecursos, // Camino al bosque
-    Recolectando,   // Tomando recursos
-    Depositando,    // Regresando a la aldea
-    Huir,           // Huyendo de lobos
-    Grupo,           // Unido con otros aldeanos
-    Reproduccion     // Está en una casa con una pareja
+    EnAldea,        // esperando o moviéndose dentro de la aldea
+    Saliendo,       // empieza a dirigirse hacia el bosque
+    Recolectando,   // buscando árbol y cortándolo
+    Regresando,     // trayendo recursos a la aldea
+    Huyendo,        // escapando de lobos
+    EnCasa,         // dentro de casa con pareja -> puede generar hijo
+    Grupo,         // yendo hacia un grupo de aldeanos
+    Muerto          // alcanzó edad máxima o lo mató un lobo
 }

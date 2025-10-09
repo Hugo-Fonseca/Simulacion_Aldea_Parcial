@@ -189,19 +189,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 84ced39dfb9107e44852bd8f23a33966, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  energy: 100
-  age: 0
-  maxAge: 100
+  vida: 5
+  edad: 0
+  edadMaxima: 100
   isAlive: 1
-  baseSpeed: 4.5
-  minSpeed: 1.5
-  visionRange: 5
+  genero: 0
   recursosRecolectados: 0
-  maxRecursos: 5
-  aldea: {fileID: 0}
-  bosque: {fileID: 0}
+  capacidadRecursos: 10
+  moveSpeed: 2
+  aldeaComp: {fileID: 0}
+  bosqueComp: {fileID: 0}
   currentState: 0
-  rechargeRate: 5
 --- !u!70 &3829339947346296888
 CapsuleCollider2D:
   m_ObjectHideFlags: 0
