@@ -39,7 +39,6 @@ public class SimulationManager : MonoBehaviour
 
     public void Simulate(float deltaTime)
     {
-        // Primero simula la aldea (esto incluye las casas y la reproducción)
         if (aldea != null)
             aldea.Simulate(deltaTime);
 
@@ -49,14 +48,12 @@ public class SimulationManager : MonoBehaviour
             if (b != null) b.Simulate(deltaTime);
         }
 
-        // Después simula a los aldeanos
         for (int i = aldeanos.Count - 1; i >= 0; i--)
         {
             if (aldeanos[i] == null) { aldeanos.RemoveAt(i); continue; }
             aldeanos[i].Simulate(deltaTime);
         }
 
-        // Finalmente simula a los lobos
         for (int i = lobos.Count - 1; i >= 0; i--)
         {
             if (lobos[i] == null) { lobos.RemoveAt(i); continue; }
@@ -64,8 +61,6 @@ public class SimulationManager : MonoBehaviour
         }
     }
 
-
-    // Registro manual opcional (por si instancias en runtime)
     public void RegisterAldeano(Aldeanos aldeano)
     {
         if (!aldeanos.Contains(aldeano))

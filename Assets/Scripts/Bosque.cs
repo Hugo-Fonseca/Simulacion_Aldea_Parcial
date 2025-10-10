@@ -21,7 +21,7 @@ public class Bosque : MonoBehaviour
     private List<GameObject> lobos = new List<GameObject>();
 
     [Header("Área del bosque")]
-    public float radioBosque = 5f; // qué tan grande es el bosque
+    public float radioBosque = 10f; // qué tan grande es el bosque
 
     public void Simulate(float deltaTime)
     {

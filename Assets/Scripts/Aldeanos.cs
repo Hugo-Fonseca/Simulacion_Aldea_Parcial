@@ -7,7 +7,6 @@ public enum Genero { Hombre, Mujer }
 public class Aldeanos : MonoBehaviour
 {
     [Header("Stats")]
-    public int vida = 5;
     public int edad = 0;
     public int edadMaxima = 100;
     public bool isAlive = true;
@@ -20,17 +19,17 @@ public class Aldeanos : MonoBehaviour
     public int capacidadRecursos = 10;
 
     [Header("Movimiento")]
-    public float moveSpeed = 3f;
+    public float moveSpeed = 1f;
     private Vector2 destino;
 
     [Header("Referencias")]
     public Aldea aldeaComp;
-    public Bosque bosqueComp; // sólo referencia por defecto
+    public Bosque bosqueComp; 
     private Bosque bosqueDestino; // bosque elegido cuando sale
    
 
     [Header("Percepción")]
-    public float rangoVision = 5f;
+    public float rangoVision = 3f;
 
     public AldeanoState currentState = AldeanoState.EnAldea;
 
@@ -40,7 +39,7 @@ public class Aldeanos : MonoBehaviour
     private float timer = 0f;
     private float tiempoEnAldea = 0f;
     private float velocidadOriginal;
-    private float tiempoBoost = 2f; // Duración del boost de velocidad
+    private float tiempoBoost = 1f; 
     private float timerBoost = 0f;
     private bool enBoost = false;
     public float tiempoMinimoEnAldea = 5f;
@@ -61,7 +60,7 @@ public class Aldeanos : MonoBehaviour
             rb.isKinematic = true;
         }
 
-        velocidadOriginal = moveSpeed; // 🔹 Guardamos la velocidad original
+        velocidadOriginal = moveSpeed;
 
         if (aldeaComp != null)
             destino = (Vector2)aldeaComp.transform.position + Random.insideUnitCircle * (aldeaComp.radioAldea);
@@ -111,9 +110,9 @@ public class Aldeanos : MonoBehaviour
             }
         }
 
-        if (loboCercano != null && distanciaMasCercana < rangoVision)
+        if (loboCercano != null && distanciaMasCercana < rangoVision) // detectar lobo cercano
         {
-            // Si recién detectó un lobo, cambia a huir y genera un destino de escape
+           
             if (currentState != AldeanoState.Huyendo)
             {
                 CambiarEstado(AldeanoState.Huyendo);
@@ -127,13 +126,39 @@ public class Aldeanos : MonoBehaviour
             }
             else
             {
-                // Solo cada cierto tiempo recalcula el destino
                 timer += deltaTime;
                 if (timer > 1.5f)
                 {
                     timer = 0f;
                     Vector2 fleeDir = ((Vector2)transform.position - (Vector2)loboCercano.transform.position).normalized;
                     destino = (Vector2)transform.position + fleeDir * 5f;
+                }
+            }
+        }
+
+        if (!isGrouped && currentState == AldeanoState.Recolectando)
+        {
+            Aldeanos[] otros = FindObjectsOfType<Aldeanos>();
+            foreach (var otro in otros)
+            {
+                if (otro == this || !otro.isAlive || otro.isGrouped) continue;
+
+                float dist = Vector2.Distance(transform.position, otro.transform.position);
+                if (dist < 2f && otro.currentState == AldeanoState.Recolectando)
+                {
+                    // Crear grupo entre ambos
+                    grupoActual = new List<Aldeanos> { this, otro };
+                    otro.grupoActual = grupoActual;
+
+                    this.isGrouped = true;
+                    otro.isGrouped = true;
+
+                    // Ambos cambian a estado grupo
+                    CambiarEstado(AldeanoState.Grupo);
+                    otro.CambiarEstado(AldeanoState.Grupo);
+
+                    Debug.Log($"Grupo formado: {name} y {otro.name}");
+                    break;
                 }
             }
         }
@@ -153,7 +178,6 @@ public class Aldeanos : MonoBehaviour
 
     void EstadoEnAldea(float dt)
     {
-        // Explorar dentro de un área amplia de la aldea
         if (aldeaComp != null)
         {
             if (Vector2.Distance(transform.position, destino) < 0.25f)
@@ -167,14 +191,12 @@ public class Aldeanos : MonoBehaviour
         {
             tiempoEnAldea = 0f;
 
-            // Si está en edad fértil -> ir a reproducirse (buscar casa)
             if (edad >= 20 && edad <= 60)
             {
                 CambiarEstado(AldeanoState.Reproducción);
                 return;
             }
 
-            // Si no, sale a recolectar
             if (edad >= 15 && edad <= 80)
             {
                 CambiarEstado(AldeanoState.Saliendo);
@@ -186,7 +208,6 @@ public class Aldeanos : MonoBehaviour
     {
         if (aldeaComp != null)
         {
-            // Si no tengo destino aún o ya llegué al destino → buscar la casa más cercana
             if (destino == Vector2.zero || Vector2.Distance(transform.position, destino) < 0.25f)
             {
                 Casa casaMasCercana = BuscarCasaMasCercana();
@@ -216,8 +237,6 @@ public class Aldeanos : MonoBehaviour
         }
         return cercana;
     }
-
-
 
     void EstadoSaliendo(float dt)
     {
@@ -308,12 +327,24 @@ public class Aldeanos : MonoBehaviour
         }
 
         Aldeanos lider = grupoActual[0];
-        foreach (var a in grupoActual)
+
+        if (this != lider)
         {
-            a.MoverHacia(lider.destino, dt);
+            destino = lider.destino;
+            MoverHacia(destino, dt);
+        }
+        else
+        {
+            if (bosqueComp != null)
+            {
+                if (Vector2.Distance(transform.position, bosqueComp.transform.position) > bosqueComp.radioBosque)
+                {
+                    destino = (Vector2)bosqueComp.transform.position + Random.insideUnitCircle * bosqueComp.radioBosque;
+                }
+            }
+            MoverHacia(destino, dt);
         }
 
-        // al llegar a la aldea se separan
         if (Vector2.Distance(transform.position, aldeaComp.transform.position) < 1.5f)
         {
             foreach (var a in grupoActual)
@@ -323,8 +354,10 @@ public class Aldeanos : MonoBehaviour
                 a.CambiarEstado(AldeanoState.EnAldea);
             }
             grupoActual.Clear();
+            Debug.Log($"Grupo disuelto en la aldea");
         }
     }
+
 
     void MoverHacia(Vector2 target, float dt)
     {

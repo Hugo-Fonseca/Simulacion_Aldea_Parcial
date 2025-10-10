@@ -1,5 +1,4 @@
 ﻿using UnityEngine;
-
 [RequireComponent(typeof(Collider2D))]
 public class Lobos : MonoBehaviour
 {
@@ -9,12 +8,11 @@ public class Lobos : MonoBehaviour
     private float edadTimer = 0f;
 
     [Header("Movimiento")]
-    public float moveSpeed = 2f;
-    public float visionRange = 5f;
+    public float moveSpeed = 3f;
+    public float visionRange = 4f;
 
     [Header("Ataque")]
-    public float attackRange = 1f;
-    public float attackCooldown = 1.0f;
+    public float attackRange = 1.5f;
 
     [Header("Aldea (evitación)")]
     public Aldea aldeaComp;              // referencia (asignar en inspector o se busca)
@@ -105,6 +103,7 @@ public class Lobos : MonoBehaviour
             case LoboState.Perseguir: EstadoPerseguir(deltaTime); break;
             case LoboState.Atacar: EstadoAtacar(deltaTime); break;
             case LoboState.Comer: EstadoComer(deltaTime); break;
+            case LoboState.EvitarGrupos: EstadoEvitarGrupos(deltaTime); break;
             case LoboState.Huir: EstadoHuir(deltaTime); break;
             case LoboState.CazaFallida: EstadoCazaFallida(deltaTime); break;
         }
@@ -172,20 +171,25 @@ public class Lobos : MonoBehaviour
 
     void EstadoAtacar(float dt)
     {
-        if (objetivo == null || !objetivo.isAlive) { CambiarEstado(LoboState.Patrullar); return; }
+        if (objetivo == null || !objetivo.isAlive)
+        {
+            CambiarEstado(LoboState.Patrullar);
+            return;
+        }
 
         float dist = Vector2.Distance(transform.position, objetivo.transform.position);
-        if (dist > attackRange) { CambiarEstado(LoboState.Perseguir); return; }
-
-        timer += dt;
-        if (timer >= attackCooldown)
+        if (dist > attackRange)
         {
-            timer = 0f;
-            objetivo.Morir();
-            objetivo = null;
-            CambiarEstado(LoboState.Comer);
+            CambiarEstado(LoboState.Perseguir);
+            return;
         }
+
+        // Ataque instantáneo: mata inmediatamente al aldeano cuando entra en rango
+        objetivo.Morir();
+        objetivo = null;
+        CambiarEstado(LoboState.Comer);
     }
+
 
     void EstadoComer(float dt)
     {
@@ -210,6 +214,39 @@ public class Lobos : MonoBehaviour
         timer += dt;
         if (timer > 2f) CambiarEstado(LoboState.Patrullar);
     }
+
+    void EstadoEvitarGrupos(float dt)
+    {
+        // Si hay grupo cerca, huir de él
+        Aldeanos[] aldeanos = FindObjectsOfType<Aldeanos>();
+        Vector2 fleeDir = Vector2.zero;
+        bool grupoCerca = false;
+
+        foreach (var a in aldeanos)
+        {
+            if (a.isGrouped && a.isAlive)
+            {
+                float dist = Vector2.Distance(transform.position, a.transform.position);
+                if (dist < visionRange)
+                {
+                    grupoCerca = true;
+                    fleeDir += (Vector2)(transform.position - a.transform.position);
+                }
+            }
+        }
+
+        if (grupoCerca)
+        {
+            fleeDir.Normalize();
+            destino = (Vector2)transform.position + fleeDir * 3f;
+            MoverHacia(destino, dt);
+        }
+        else
+        {
+            CambiarEstado(LoboState.Patrullar);
+        }
+    }
+
 
     void MoverHacia(Vector2 target, float dt)
     {
@@ -258,6 +295,9 @@ public class Lobos : MonoBehaviour
     {
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, visionRange);
+
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, attackRange);
 
         if (zonaAldeaCollider is CircleCollider2D cc)
         {

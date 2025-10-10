@@ -27,15 +27,13 @@ public class Casa : MonoBehaviour
                 Debug.Log($"    Aldeano encontrado: {a.name} edad={a.edad} isAlive={a.isAlive} genero={a.genero}");
             }
 
-            // Para depuración: comentar temporalmente la condición de edad para ver si el problema es el filtro
-            // if (a != null && a.isAlive /*&& a.edad >= 20*/ && !candidatos.Contains(a))
+            
             if (a != null && a.isAlive && a.edad >= 20 && !candidatos.Contains(a))
             {
                 candidatos.Add(a);
             }
         }
 
-        // Necesitamos mínimo 2 aldeanos
         if (candidatos.Count >= 2)
         {
             // Buscar pareja hombre-mujer
@@ -63,7 +61,7 @@ public class Casa : MonoBehaviour
             }
             else
             {
-                timer = 0f; // no hay pareja válida
+                timer = 0f; 
             }
         }
         else
@@ -83,7 +81,6 @@ public class Casa : MonoBehaviour
         if (hijo != null)
         {
             hijo.edad = 0;
-            hijo.vida = 5;
 
             hijo.genero = (Random.value < 0.5f) ? Genero.Hombre : Genero.Mujer; //
 
@@ -100,8 +97,6 @@ public class Casa : MonoBehaviour
             madre.CambiarEstado(AldeanoState.EnAldea);
     }
 
-
-    // Gizmos para ver el radio en el editor
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.green;
