@@ -43,12 +43,14 @@ public class Aldea : MonoBehaviour
 
     public void Simulate(float deltaTime)
     {
-        // Hacer Simulate en cada casa
         for (int i = 0; i < casas.Count; i++)
         {
             Casa casaComp = casas[i].GetComponent<Casa>();
             if (casaComp != null)
+            {
+                // Debug.Log($"[Aldea] Simulando casa {casas[i].name}");
                 casaComp.Simulate(deltaTime);
+            }
         }
     }
 

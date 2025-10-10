@@ -46,12 +46,21 @@ public class Aldeanos : MonoBehaviour
         SimulationManager sim = FindObjectOfType<SimulationManager>();
         if (sim != null) sim.RegisterAldeano(this);
 
+        Rigidbody2D rb = GetComponent<Rigidbody2D>();
+        if (rb == null)
+        {
+            rb = gameObject.AddComponent<Rigidbody2D>();
+            rb.gravityScale = 0f;
+            rb.isKinematic = true; 
+        }
+
         // destino inicial dentro de la aldea (si hay aldea)
         if (aldeaComp != null)
             destino = (Vector2)aldeaComp.transform.position + Random.insideUnitCircle * (aldeaComp.radioAldea);
 
         CambiarEstado(AldeanoState.EnAldea);
     }
+
 
     public void Simulate(float deltaTime)
     {
@@ -78,7 +87,6 @@ public class Aldeanos : MonoBehaviour
             case AldeanoState.Recolectando: EstadoRecolectando(deltaTime); break;
             case AldeanoState.Regresando: EstadoRegresando(deltaTime); break;
             case AldeanoState.Huyendo: EstadoHuyendo(deltaTime); break;
-            case AldeanoState.EnCasa: EstadoEnCasa(deltaTime); break;
             case AldeanoState.Grupo: EstadoGrupo(deltaTime); break;
             case AldeanoState.Muerto: /* No hace nada */ break;
         }
@@ -118,28 +126,40 @@ public class Aldeanos : MonoBehaviour
 
     void EstadoReproduccion(float dt)
     {
-        // Si no tiene casa, buscar una disponible en la aldea
-        if (casaActual == null)
+        if (aldeaComp != null)
         {
-            Casa casaDisponible = BuscarCasaDisponible();
-            if (casaDisponible != null)
-                casaActual = casaDisponible;
-            else
+            // Si no tengo destino aún o ya llegué al destino → buscar la casa más cercana
+            if (destino == Vector2.zero || Vector2.Distance(transform.position, destino) < 0.25f)
             {
-                // No hay casa: se queda paseando en la aldea hasta la próxima decisión
-                if (aldeaComp != null && Vector2.Distance(transform.position, destino) < 0.25f)
-                    destino = (Vector2)aldeaComp.transform.position + Random.insideUnitCircle * (aldeaComp.radioAldea);
-                MoverHacia(destino, dt);
-                return;
+                Casa casaMasCercana = BuscarCasaMasCercana();
+                if (casaMasCercana != null)
+                    destino = casaMasCercana.transform.position;
             }
         }
 
-        // Ir hacia la casa asignada
-        destino = casaActual.transform.position;
+        // Mover hacia el destino (la casa más cercana)
         MoverHacia(destino, dt);
-
-        // El cambio a EnCasa ocurre cuando entra al trigger de la casa (OnTriggerEnter2D)
     }
+
+    Casa BuscarCasaMasCercana()
+    {
+        Casa[] casas = FindObjectsOfType<Casa>();
+        Casa cercana = null;
+        float distMin = Mathf.Infinity;
+
+        foreach (var c in casas)
+        {
+            float d = Vector2.Distance(transform.position, c.transform.position);
+            if (d < distMin)
+            {
+                distMin = d;
+                cercana = c;
+            }
+        }
+        return cercana;
+    }
+
+
 
     void EstadoSaliendo(float dt)
     {
@@ -270,11 +290,6 @@ public class Aldeanos : MonoBehaviour
             // nuevo destino de exploración en la aldea
             if (aldeaComp != null) destino = (Vector2)aldeaComp.transform.position + Random.insideUnitCircle * (aldeaComp.radioAldea);
         }
-        else if (nuevo == AldeanoState.EnCasa)
-        {
-            // inmóvil
-            destino = (Vector2)transform.position;
-        }
         else if (nuevo == AldeanoState.Saliendo)
         {
             bosqueDestino = null; // se elegirá al entrar en EstadoSaliendo
@@ -292,40 +307,4 @@ public class Aldeanos : MonoBehaviour
         Destroy(gameObject);
     }
 
-    public void AsignarCasa(Casa casa)
-    {
-        casaActual = casa;
-        if (casa != null)
-        {
-            CambiarEstado(AldeanoState.EnCasa);
-        }
-        else
-        {
-            // si se le quita la casa -> volver a EnAldea
-            CambiarEstado(AldeanoState.EnAldea);
-        }
-    }
-
-    Casa BuscarCasaDisponible()
-    {
-        if (aldeaComp == null) return null;
-
-        foreach (var go in aldeaComp.casas)
-        {
-            Casa casa = go.GetComponent<Casa>();
-            if (casa == null) continue;
-
-            List<Aldeanos> residentes = casa.GetResidentes();
-
-            // Caso 1: Casa vacía
-            if (residentes.Count == 0)
-                return casa;
-
-            // Caso 2: Un residente de género opuesto
-            if (residentes.Count == 1 && residentes[0].genero != this.genero)
-                return casa;
-        }
-
-        return null; // No hay casa disponible
-    }
 }

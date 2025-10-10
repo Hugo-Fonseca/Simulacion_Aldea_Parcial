@@ -4,42 +4,59 @@ using UnityEngine;
 public class Casa : MonoBehaviour
 {
     [Header("Reproducción")]
+    public float radioDeteccion = 2f;
     public float tiempoReproduccion = 10f;
     private float timer = 0f;
 
     [Header("Prefabs")]
     public GameObject aldeanoPrefab;
 
-    private List<Aldeanos> aldeanosDentro = new List<Aldeanos>();
+    private List<Aldeanos> candidatos = new List<Aldeanos>();
 
-    // --- Simulación de la casa ---
     public void Simulate(float deltaTime)
     {
-        if (aldeanosDentro.Count == 2)
-        {
-            Aldeanos a1 = aldeanosDentro[0];
-            Aldeanos a2 = aldeanosDentro[1];
+        // Buscar aldeanos cercanos
+        Collider2D[] colls = Physics2D.OverlapCircleAll(transform.position, radioDeteccion);
 
-            // Ambos deben estar vivos, ser de distinto género y tener edad adecuada
-            if (a1.isAlive && a2.isAlive &&
-                a1.genero != a2.genero &&
-                a1.edad >= 20 && a2.edad >= 20)
+        candidatos.Clear();
+        foreach (var c in colls)
+        {
+            Aldeanos a = c.GetComponent<Aldeanos>();
+            if (a != null && a.isAlive && a.edad >= 20 && !candidatos.Contains(a))
+            {
+                candidatos.Add(a);
+            }
+        }
+
+        // Necesitamos mínimo 2 aldeanos
+        if (candidatos.Count >= 2)
+        {
+            // Buscar pareja hombre-mujer
+            Aldeanos macho = null;
+            Aldeanos hembra = null;
+
+            foreach (var a in candidatos)
+            {
+                if (a.genero == Genero.Hombre && macho == null)
+                    macho = a;
+
+                if (a.genero == Genero.Mujer && hembra == null)
+                    hembra = a;
+            }
+
+            if (macho != null && hembra != null)
             {
                 timer += deltaTime;
 
                 if (timer >= tiempoReproduccion)
                 {
-                    CrearNuevoAldeano();
+                    CrearNuevoAldeano(macho, hembra);
                     timer = 0f;
-
-                    // Sacar a los dos de la casa y devolverlos a la aldea
-                    foreach (var a in aldeanosDentro)
-                    {
-                        a.CambiarEstado(AldeanoState.EnAldea);
-                        a.transform.position = (Vector2)transform.position + Random.insideUnitCircle * 1.5f;
-                    }
-                    VaciarCasa();
                 }
+            }
+            else
+            {
+                timer = 0f; // no hay pareja válida
             }
         }
         else
@@ -48,47 +65,31 @@ public class Casa : MonoBehaviour
         }
     }
 
-    // --- Métodos accesibles desde Aldeanos ---
-    public List<Aldeanos> GetResidentes()
-    {
-        return aldeanosDentro;
-    }
-
-    public void VaciarCasa()
-    {
-        // avisar a residentes si fuera necesario
-        aldeanosDentro.Clear();
-    }
-
-    public void CrearNuevoAldeano()
+    private void CrearNuevoAldeano(Aldeanos padre, Aldeanos madre)
     {
         if (aldeanoPrefab == null) return;
+
         Vector2 spawnPos = (Vector2)transform.position + Random.insideUnitCircle * 1f;
-        Instantiate(aldeanoPrefab, spawnPos, Quaternion.identity);
+        GameObject hijoGO = Instantiate(aldeanoPrefab, spawnPos, Quaternion.identity);
+
+        Aldeanos hijo = hijoGO.GetComponent<Aldeanos>();
+        if (hijo != null)
+        {
+            hijo.edad = 0;
+            hijo.vida = 5;
+
+            SimulationManager sim = FindObjectOfType<SimulationManager>();
+            if (sim != null) sim.RegisterAldeano(hijo);
+        }
+
         Debug.Log("¡Nuevo aldeano nacido en la casa!");
     }
 
-    // --- Triggers ---
-    private void OnTriggerEnter2D(Collider2D other)
+    // Gizmos para ver el radio en el editor
+    private void OnDrawGizmosSelected()
     {
-        Aldeanos aldeano = other.GetComponent<Aldeanos>();
-        if (aldeano != null && !aldeanosDentro.Contains(aldeano))
-        {
-            if (aldeanosDentro.Count < 2)
-            {
-                aldeanosDentro.Add(aldeano);
-                aldeano.AsignarCasa(this); // esto pone al aldeano en EnCasa
-            }
-        }
-    }
-
-    private void OnTriggerExit2D(Collider2D other)
-    {
-        Aldeanos aldeano = other.GetComponent<Aldeanos>();
-        if (aldeano != null && aldeanosDentro.Contains(aldeano))
-        {
-            aldeanosDentro.Remove(aldeano);
-            aldeano.AsignarCasa(null);
-        }
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(transform.position, radioDeteccion);
     }
 }
+
