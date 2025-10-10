@@ -24,10 +24,36 @@ public class Aldea : MonoBehaviour
     [Header("Curación")]
     public float curacionPorSegundo = 5f;
 
+    [Header("Zona (colisión)")]
+    public Collider2D zonaAldeaCollider;
+
     void Start()
     {
         Initialize();
+
+        // Si no hay collider asignado, intentar obtener uno en este GameObject
+        if (zonaAldeaCollider == null)
+        {
+            zonaAldeaCollider = GetComponent<CircleCollider2D>();
+            if (zonaAldeaCollider == null)
+            {
+                // Crear uno en runtime (solo útil en Play mode; para edición recomiendo asignarlo en Inspector)
+                CircleCollider2D cc = gameObject.AddComponent<CircleCollider2D>();
+                cc.isTrigger = true;
+                cc.radius = radioAldea;
+                zonaAldeaCollider = cc;
+            }
+        }
     }
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        // Mantener el radius del collider sincronizado (útil al editar)
+        CircleCollider2D cc = GetComponent<CircleCollider2D>();
+        if (cc != null) cc.radius = radioAldea;
+    }
+#endif
 
     public void Initialize()
     {

@@ -20,14 +20,17 @@ public class Aldeanos : MonoBehaviour
     public int capacidadRecursos = 10;
 
     [Header("Movimiento")]
-    public float moveSpeed = 2f;
+    public float moveSpeed = 3f;
     private Vector2 destino;
 
     [Header("Referencias")]
     public Aldea aldeaComp;
     public Bosque bosqueComp; // sólo referencia por defecto
     private Bosque bosqueDestino; // bosque elegido cuando sale
-    private Casa casaActual;
+   
+
+    [Header("Percepción")]
+    public float rangoVision = 5f;
 
     public AldeanoState currentState = AldeanoState.EnAldea;
 
@@ -36,7 +39,11 @@ public class Aldeanos : MonoBehaviour
 
     private float timer = 0f;
     private float tiempoEnAldea = 0f;
-    public float tiempoMinimoEnAldea = 5f; // tiempo de descanso en la aldea
+    private float velocidadOriginal;
+    private float tiempoBoost = 2f; // Duración del boost de velocidad
+    private float timerBoost = 0f;
+    private bool enBoost = false;
+    public float tiempoMinimoEnAldea = 5f;
 
     void Start()
     {
@@ -51,10 +58,11 @@ public class Aldeanos : MonoBehaviour
         {
             rb = gameObject.AddComponent<Rigidbody2D>();
             rb.gravityScale = 0f;
-            rb.isKinematic = true; 
+            rb.isKinematic = true;
         }
 
-        // destino inicial dentro de la aldea (si hay aldea)
+        velocidadOriginal = moveSpeed; // 🔹 Guardamos la velocidad original
+
         if (aldeaComp != null)
             destino = (Vector2)aldeaComp.transform.position + Random.insideUnitCircle * (aldeaComp.radioAldea);
 
@@ -66,9 +74,19 @@ public class Aldeanos : MonoBehaviour
     {
         if (!isAlive || currentState == AldeanoState.Muerto) return;
 
-        // Envejecer: 1 año cada 2 segundos
+        // Manejo del boost de velocidad
+        if (enBoost)
+        {
+            timerBoost += deltaTime;
+            if (timerBoost >= tiempoBoost)
+            {
+                moveSpeed = velocidadOriginal; // Volver a la velocidad normal
+                enBoost = false;
+            }
+        }
+
         timer += deltaTime;
-        if (timer >= 2f)
+        if (timer >= 4f)
         {
             timer = 0f;
             edad++;
@@ -76,6 +94,47 @@ public class Aldeanos : MonoBehaviour
             {
                 Morir();
                 return;
+            }
+        }
+
+        Lobos[] lobos = FindObjectsOfType<Lobos>();
+        float distanciaMasCercana = Mathf.Infinity;
+        Lobos loboCercano = null;
+
+        foreach (var lobo in lobos)
+        {
+            float distLobo = Vector2.Distance(transform.position, lobo.transform.position);
+            if (distLobo < distanciaMasCercana)
+            {
+                distanciaMasCercana = distLobo;
+                loboCercano = lobo;
+            }
+        }
+
+        if (loboCercano != null && distanciaMasCercana < rangoVision)
+        {
+            // Si recién detectó un lobo, cambia a huir y genera un destino de escape
+            if (currentState != AldeanoState.Huyendo)
+            {
+                CambiarEstado(AldeanoState.Huyendo);
+                Vector2 fleeDir = ((Vector2)transform.position - (Vector2)loboCercano.transform.position).normalized;
+                if (fleeDir.sqrMagnitude < 0.001f) fleeDir = Random.insideUnitCircle.normalized;
+                destino = (Vector2)transform.position + fleeDir * 5f;
+
+                moveSpeed = 2f; // Aumentar la velocidad al huir
+                enBoost = true;
+                timerBoost = 0f;
+            }
+            else
+            {
+                // Solo cada cierto tiempo recalcula el destino
+                timer += deltaTime;
+                if (timer > 1.5f)
+                {
+                    timer = 0f;
+                    Vector2 fleeDir = ((Vector2)transform.position - (Vector2)loboCercano.transform.position).normalized;
+                    destino = (Vector2)transform.position + fleeDir * 5f;
+                }
             }
         }
 
@@ -88,11 +147,10 @@ public class Aldeanos : MonoBehaviour
             case AldeanoState.Regresando: EstadoRegresando(deltaTime); break;
             case AldeanoState.Huyendo: EstadoHuyendo(deltaTime); break;
             case AldeanoState.Grupo: EstadoGrupo(deltaTime); break;
-            case AldeanoState.Muerto: /* No hace nada */ break;
+            case AldeanoState.Muerto: break;
         }
     }
 
-    // ---------- Estados ----------
     void EstadoEnAldea(float dt)
     {
         // Explorar dentro de un área amplia de la aldea
@@ -110,14 +168,14 @@ public class Aldeanos : MonoBehaviour
             tiempoEnAldea = 0f;
 
             // Si está en edad fértil -> ir a reproducirse (buscar casa)
-            if (edad >= 20 && edad <= 50)
+            if (edad >= 20 && edad <= 60)
             {
                 CambiarEstado(AldeanoState.Reproducción);
                 return;
             }
 
             // Si no, sale a recolectar
-            if (edad >= 15 && edad <= 60)
+            if (edad >= 15 && edad <= 80)
             {
                 CambiarEstado(AldeanoState.Saliendo);
             }
@@ -216,11 +274,6 @@ public class Aldeanos : MonoBehaviour
         }
     }
 
-    void EstadoEnCasa(float dt)
-    {
-        // Inmóvil; la lógica de reproducción la controla Casa.Simulate
-    }
-
     void EstadoRegresando(float dt)
     {
         MoverHacia(aldeaComp.transform.position, dt);
@@ -236,7 +289,9 @@ public class Aldeanos : MonoBehaviour
     void EstadoHuyendo(float dt)
     {
         if (aldeaComp == null) return;
-        destino = aldeaComp.transform.position;
+
+        destino = (Vector2)aldeaComp.transform.position + Random.insideUnitCircle * 0.5f;
+
         MoverHacia(destino, dt);
 
         if (Vector2.Distance(transform.position, aldeaComp.transform.position) < 1.5f)
@@ -271,7 +326,6 @@ public class Aldeanos : MonoBehaviour
         }
     }
 
-    // ---------- Utilidades ----------
     void MoverHacia(Vector2 target, float dt)
     {
         Vector2 dir = (target - (Vector2)transform.position).normalized;
@@ -307,4 +361,9 @@ public class Aldeanos : MonoBehaviour
         Destroy(gameObject);
     }
 
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(transform.position, rangoVision);
+    }
 }

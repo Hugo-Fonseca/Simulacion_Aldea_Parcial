@@ -22,6 +22,13 @@ public class Casa : MonoBehaviour
         foreach (var c in colls)
         {
             Aldeanos a = c.GetComponent<Aldeanos>();
+            if (a != null)
+            {
+                Debug.Log($"    Aldeano encontrado: {a.name} edad={a.edad} isAlive={a.isAlive} genero={a.genero}");
+            }
+
+            // Para depuración: comentar temporalmente la condición de edad para ver si el problema es el filtro
+            // if (a != null && a.isAlive /*&& a.edad >= 20*/ && !candidatos.Contains(a))
             if (a != null && a.isAlive && a.edad >= 20 && !candidatos.Contains(a))
             {
                 candidatos.Add(a);
@@ -78,12 +85,21 @@ public class Casa : MonoBehaviour
             hijo.edad = 0;
             hijo.vida = 5;
 
+            hijo.genero = (Random.value < 0.5f) ? Genero.Hombre : Genero.Mujer; //
+
             SimulationManager sim = FindObjectOfType<SimulationManager>();
             if (sim != null) sim.RegisterAldeano(hijo);
         }
 
         Debug.Log("¡Nuevo aldeano nacido en la casa!");
+
+        if (padre != null && padre.isAlive)
+            padre.CambiarEstado(AldeanoState.EnAldea);
+
+        if (madre != null && madre.isAlive)
+            madre.CambiarEstado(AldeanoState.EnAldea);
     }
+
 
     // Gizmos para ver el radio en el editor
     private void OnDrawGizmosSelected()

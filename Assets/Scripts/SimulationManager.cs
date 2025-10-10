@@ -7,7 +7,8 @@ public class SimulationManager : MonoBehaviour
 
     [Header("Escenario")]
     public Aldea aldea;
-    public Bosque bosque;
+    public List<Bosque> bosques = new List<Bosque>();
+
 
     [Header("Entidades")]
     public List<Aldeanos> aldeanos = new List<Aldeanos>();
@@ -24,7 +25,8 @@ public class SimulationManager : MonoBehaviour
 
         // Buscar aldea y bosque si no están asignados
         if (aldea == null) aldea = FindFirstObjectByType<Aldea>();
-        if (bosque == null) bosque = FindFirstObjectByType<Bosque>();
+        Bosque[] foundBosques = FindObjectsOfType<Bosque>();
+        bosques = new List<Bosque>(foundBosques);
     }
 
     void Update()
@@ -41,9 +43,11 @@ public class SimulationManager : MonoBehaviour
         if (aldea != null)
             aldea.Simulate(deltaTime);
 
-        // Luego simula el bosque
-        if (bosque != null)
-            bosque.Simulate(deltaTime);
+        // Simular todos los bosques
+        foreach (var b in bosques)
+        {
+            if (b != null) b.Simulate(deltaTime);
+        }
 
         // Después simula a los aldeanos
         for (int i = aldeanos.Count - 1; i >= 0; i--)
